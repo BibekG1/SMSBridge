@@ -11,8 +11,8 @@ android {
         applicationId = "com.smsbridge.work"
         minSdk = 28
         targetSdk = 34
-        versionCode = 7
-        versionName = "1.0.6"
+        versionCode = 8
+        versionName = "1.0.7"
     }
 
     buildTypes {
@@ -37,4 +37,6 @@ dependencies {
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
     implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("com.google.android.gms:play-services-auth-api-phone:18.0.2")
+    implementation("com.google.android.gms:play-services-base:18.3.0")
 }
