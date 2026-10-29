@@ -116,7 +116,7 @@ Download the latest releases from the [Releases](https://github.com/BibekG1/SMSB
    # Install into the work profile (e.g., user 11)
    adb install -r --user 11 SMSBridge-Work-v1.0.8.apk
    ```
-
+OR JUST INSTALL MANUALLY BY YOURSELF IN YOUR DEVICE.
 ---
 
 ### Step 2: Configure Permissions
