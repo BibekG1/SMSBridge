@@ -1,0 +1,44 @@
+package com.smsbridge.main
+
+import android.app.Notification
+import android.content.ComponentName
+import android.content.Context
+import android.provider.Settings
+import android.service.notification.NotificationListenerService
+import android.service.notification.StatusBarNotification
+import android.util.Log
+
+class NotificationListenerService : NotificationListenerService() {
+    companion object {
+        private const val TAG = "SMSBridge-NotifListener"
+
+        fun isEnabled(context: Context): Boolean {
+            val flat = Settings.Secure.getString(
+                context.contentResolver, "enabled_notification_listeners"
+            ) ?: return false
+            val cn = ComponentName(context, NotificationListenerService::class.java)
+            return flat.contains(cn.flattenToString())
+        }
+    }
+
+    override fun onNotificationPosted(sbn: StatusBarNotification) {
+        val pkg = sbn.packageName ?: return
+        if (pkg == packageName) return // skip own notifications
+        if (!FilterManager.shouldForward(pkg)) return
+
+        val extras = sbn.notification?.extras ?: return
+        val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
+        val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty()
+        val bigText = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()
+
+        val body = bigText?.takeIf { it.isNotBlank() } ?: text
+        if (body.isBlank()) return
+
+        val sender = if (title.isNotBlank()) "$title ($pkg)" else pkg
+        Log.d(TAG, "Notification from $pkg: $body")
+
+        val msg = BridgeMessage(sender = sender, body = body, sourceType = "NOTIFICATION")
+        MessageStore.addMessage(msg)
+        BridgeService.sendMessage(applicationContext, msg)
+    }
+}
