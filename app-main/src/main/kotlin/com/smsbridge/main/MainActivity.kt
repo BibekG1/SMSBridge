@@ -137,11 +137,11 @@ class MainActivity : AppCompatActivity() {
 }
 
 class MessageAdapter : RecyclerView.Adapter<MessageAdapter.VH>() {
-    private val items = ArrayDeque<BridgeMessage>()
+    private val items = ArrayList<BridgeMessage>()
 
     fun addMessage(msg: BridgeMessage) {
-        if (items.size >= 3) items.removeFirst()
-        items.addLast(msg)
+        if (items.size >= 3) items.removeAt(0)
+        items.add(msg)
         notifyDataSetChanged()
     }
 

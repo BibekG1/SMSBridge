@@ -76,3 +76,4 @@ jobs:
             release-apks/SMSBridge-Work-${{ env.TAG_NAME }}.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

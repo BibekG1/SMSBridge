@@ -79,11 +79,11 @@ class MainActivity : AppCompatActivity() {
 }
 
 class WorkMessageAdapter : RecyclerView.Adapter<WorkMessageAdapter.VH>() {
-    private val items = ArrayDeque<ReceivedMessage>()
+    private val items = ArrayList<ReceivedMessage>()
 
     fun addMessage(msg: ReceivedMessage) {
-        if (items.size >= 3) items.removeFirst()
-        items.addLast(msg)
+        if (items.size >= 3) items.removeAt(0)
+        items.add(msg)
         notifyDataSetChanged()
     }
 

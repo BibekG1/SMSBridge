@@ -43,7 +43,7 @@ class ReceiverService : Service() {
         Log.d(TAG, "ReceiverService started")
     }
 
-    private suspend fun startListening() {
+    private fun CoroutineScope.startListening() {
         try {
             serverSocket = ServerSocket(PORT).also {
                 it.reuseAddress = true
@@ -51,7 +51,7 @@ class ReceiverService : Service() {
             }
             while (isActive) {
                 val socket = serverSocket?.accept() ?: break
-                scope.launch {
+                launch {
                     try {
                         socket.use { s ->
                             val reader = BufferedReader(InputStreamReader(s.getInputStream()))
