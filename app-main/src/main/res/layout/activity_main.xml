@@ -15,7 +15,7 @@
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            android:background="?attr/colorPrimary"
+            android:background="@color/colorPrimary"
             android:elevation="4dp"
             android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
             app:title="SMS Bridge (Main)"
@@ -40,7 +40,9 @@
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="12dp"
                 app:cardCornerRadius="8dp"
-                app:cardElevation="2dp">
+                app:cardElevation="2dp"
+                app:strokeWidth="1dp"
+                app:strokeColor="@color/colorOutline">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -88,7 +90,9 @@
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="12dp"
                 app:cardCornerRadius="8dp"
-                app:cardElevation="2dp">
+                app:cardElevation="2dp"
+                app:strokeWidth="1dp"
+                app:strokeColor="@color/colorOutline">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -128,7 +132,9 @@
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="12dp"
                 app:cardCornerRadius="8dp"
-                app:cardElevation="2dp">
+                app:cardElevation="2dp"
+                app:strokeWidth="1dp"
+                app:strokeColor="@color/colorOutline">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -139,7 +145,7 @@
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="App Filter"
+                        android:text="Target App Filter"
                         android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle1"
                         android:textStyle="bold"
                         android:layout_marginBottom="8dp"/>
@@ -148,7 +154,7 @@
                         android:id="@+id/switchFilter"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Enable App Filter"
+                        android:text="Only forward selected apps"
                         android:layout_marginBottom="8dp"/>
 
                     <TextView
@@ -157,7 +163,27 @@
                         android:layout_height="wrap_content"
                         android:text="Forwarding: ALL apps (no filter)"
                         android:textAppearance="@style/TextAppearance.MaterialComponents.Caption"
-                        android:textColor="?attr/colorOnSurface"/>
+                        android:textColor="?attr/colorOnSurface"
+                        android:layout_marginBottom="12dp"/>
+
+                    <!-- Button to open App Picker -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnSelectApps"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Select Target Apps (0 selected)"
+                        android:layout_marginBottom="6dp"/>
+
+                    <!-- Summary of selected apps -->
+                    <TextView
+                        android:id="@+id/tvSelectedAppsSummary"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textSize="12sp"
+                        android:alpha="0.75"
+                        android:lineSpacingMultiplier="1.2"
+                        android:text="Selected apps: None"/>
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -168,7 +194,9 @@
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="12dp"
                 app:cardCornerRadius="8dp"
-                app:cardElevation="2dp">
+                app:cardElevation="2dp"
+                app:strokeWidth="1dp"
+                app:strokeColor="@color/colorOutline">
 
                 <LinearLayout
                     android:layout_width="match_parent"

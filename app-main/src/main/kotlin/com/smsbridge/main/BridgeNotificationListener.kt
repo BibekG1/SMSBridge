@@ -42,3 +42,4 @@ class BridgeNotificationListener : NotificationListenerService() {
         BridgeService.sendMessage(applicationContext, msg)
     }
 }
+
