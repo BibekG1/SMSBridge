@@ -1,0 +1,78 @@
+name: Build & Publish Release APKs
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version tag (e.g. v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      - name: Build APKs with Gradle
+        run: ./gradlew assembleRelease --stacktrace
+
+      - name: Prepare APKs for Release
+        run: |
+          TAG_NAME="${{ github.ref_name }}"
+          if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" = "main" ]; then
+            TAG_NAME="${{ github.event.inputs.version || 'v1.0.0' }}"
+          fi
+          mkdir -p release-apks
+          cp app-main/build/outputs/apk/release/app-main-release.apk release-apks/SMSBridge-Main-${TAG_NAME}.apk
+          cp app-work/build/outputs/apk/release/app-work-release.apk release-apks/SMSBridge-Work-${TAG_NAME}.apk
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
+          ls -la release-apks/
+
+      - name: Create GitHub Release and Upload APKs
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG_NAME }}
+          name: SMSBridge ${{ env.TAG_NAME }}
+          draft: false
+          prerelease: false
+          body: |
+            ### SMSBridge ${{ env.TAG_NAME }} Release
+
+            Bridging SMS & notifications between Android Main Profile and Work Profile.
+
+            #### 📦 Download APKs:
+            - **`SMSBridge-Main-${{ env.TAG_NAME }}.apk`**: Install on your **Main Profile**. Listens to SMS and notifications.
+            - **`SMSBridge-Work-${{ env.TAG_NAME }}.apk`**: Install inside your **Work Profile**. Receives messages in real-time, displays full raw body (including SMS Retriever app hashes), and provides 1-tap OTP & Full SMS copy actions.
+
+            #### 🛠️ Installation:
+            1. Install `SMSBridge-Main` on the default personal profile.
+            2. Install `SMSBridge-Work` on the work profile:
+               ```bash
+               adb install --user <WORK_PROFILE_ID> SMSBridge-Work-${{ env.TAG_NAME }}.apk
+               ```
+               *(Find profile ID via `adb shell pm list users`)*
+            3. Grant notification listener access in the Main app and enable the bridges!
+          files: |
+            release-apks/SMSBridge-Main-${{ env.TAG_NAME }}.apk
+            release-apks/SMSBridge-Work-${{ env.TAG_NAME }}.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
