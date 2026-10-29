@@ -1,5 +1,8 @@
 # SMSBridge
 
+> **Author:** [BIBEK](https://github.com/bibekg1)  
+> **License:** MIT
+
 A two-app Android system that bridges SMS messages and notifications from your **main profile** to your **work profile**, enabling OTP auto-reading in work profile apps.
 
 ## Architecture
@@ -205,3 +208,7 @@ SMSBridge/
 
 **"Receiver: INACTIVE" after phone restart:**
 - Both services must be manually restarted after reboot (auto-start is blocked on most ROMs). Open both apps after reboot.
+
+---
+
+Made with ❤️ by [BIBEK](https://github.com/bibekg1)
