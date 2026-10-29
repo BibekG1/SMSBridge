@@ -1,213 +1,232 @@
 # SMSBridge
 
 > **Author:** [BIBEK](https://github.com/bibekg1)  
-> **License:** MIT
+> **License:** MIT  
+> **Version:** 1.0.8
 
-A two-app Android system that bridges SMS messages and notifications from your **main profile** to your **work profile**, enabling OTP auto-reading in work profile apps.
+A comprehensive Android two-app system designed to bridge SMS messages and notifications from your **Personal Profile (User 0)** to your **Work Profile / Island (User 11)**. 
 
-## Architecture
+Engineered specifically to solve the strict profile isolation in Android that prevents Work Profile apps—including Indian UPI and banking apps (**PhonePe, Tata Neu, Freecharge, BHIM, Paytm**)—from receiving incoming SMS broadcasts, performing SIM binding, or auto-verifying OTPs.
 
-```
-MAIN PROFILE                          WORK PROFILE
-┌─────────────────────────┐          ┌──────────────────────────┐
-│   SMS Bridge (Main)     │          │   SMS Bridge (Work)      │
-│                         │          │                          │
-│  ┌─────────────────┐    │          │  ┌────────────────────┐  │
-│  │ SmsReceiver     │    │          │  │ ReceiverService    │  │
-│  │ (BroadcastRcvr) │    │  Socket  │  │ (ServerSocket      │  │
-│  └────────┬────────┘    │─────────▶│  │  port 65432)       │  │
-│           │             │          │  └────────┬───────────┘  │
-│  ┌────────▼────────┐    │          │           │              │
-│  │Notification     │    │          │  ┌────────▼───────────┐  │
-│  │ListenerService  │    │          │  │ OtpDetector        │  │
-│  └────────┬────────┘    │          │  │ NotificationHelper │  │
-│           │             │          │  │ Auto-clipboard     │  │
-│  ┌────────▼────────┐    │          │  └────────────────────┘  │
-│  │ BridgeService   │    │          │                          │
-│  │ (Socket client) │    │          │  → Shows notification    │
-│  └─────────────────┘    │          │  → Highlights OTP        │
-└─────────────────────────┘          │  → Auto-copies to clip   │
-                                     └──────────────────────────┘
-```
+---
 
-## What It Does
+## The Problem Solved
 
-SMSBridge solves a common Android Work Profile limitation: OTP/verification SMS messages arrive on the main profile, but the app that needs the OTP runs in the work profile (e.g., work email, banking app installed in work profile). Android's profile separation means the work profile can't see the main profile's SMS inbox or notifications.
+### 1. The Work Profile Telephony Barrier
+In Android AOSP (`InboundSmsHandler`), when a physical SMS arrives at the cellular modem:
+- The system dispatches `android.provider.Telephony.SMS_RECEIVED` **strictly to User 0 (Personal Profile)**.
+- It **never** dispatches the broadcast to secondary users or managed work profiles.
+- Google Play Services inside the work profile (`com.google.android.gms`) waits for this broadcast to power the Google SMS Retriever API. Because the OS blocks the broadcast to secondary profiles, Google Play Services times out, and the work profile app fails verification.
 
-SMSBridge creates a local loopback socket channel between the two profiles to relay messages in real time.
+### 2. Device SIM Binding (Zero-Input Verification)
+Indian UPI and banking apps do not provide a manual OTP input box during device registration. In compliance with NPCI regulations:
+1. The app sends an outbound SMS (`UPIACT ...` or `PHONEPE-SMS-VERIFY ...`) from your physical SIM.
+2. The banking server replies with a confirmation/OTP SMS containing an app-specific verification hash (e.g. `<#> ... gZBmDyq76e3`).
+3. The app relies on **operating system auto-verification** to confirm the SIM card resides in the active device.
+4. Without the system SMS broadcast reaching the work profile, automated SIM binding cannot complete.
 
-## Features
+### 3. SMS Loop Prevention
+Writing incoming messages into `TelephonyProvider` (`content://sms`) modifies Android's shared telephony database, triggering Personal Profile SMS apps (Google Messages, Truecaller) to post notifications, which can create infinite relay loops. SMSBridge eliminates this via root broadcast dispatch and intelligent notification filtering.
 
-- 📨 **SMS Relay** — Intercepts incoming SMS via `BroadcastReceiver` in the main profile
-- 🔔 **Notification Relay** — Listens to any app's notifications via `NotificationListenerService`
-- 🔢 **OTP Auto-Detection** — Regex-based extraction of 4–8 digit / alphanumeric OTPs
-- 📋 **Auto Copy to Clipboard** — Detected OTPs are auto-copied in the work profile
-- 🔁 **App Filter** — Optionally restrict which apps get forwarded (whitelist)
-- 💾 **Last 3 Messages in Memory** — No database, minimal footprint
-- 🔒 **Local-only** — All data stays on-device via loopback (127.0.0.1:65432)
+---
 
-## Requirements
+## Dual-Channel Architecture
 
-- Android 9+ (API 28) on both profiles
-- Work Profile enabled on the device (via MDM / Android's built-in Digital Wellbeing / third-party launchers)
-- Both apps must be signed with the same key for `CrossProfileApps` API (optional enhancement)
-
-## Setup
-
-### Step 1: Build
-
-Open the project in Android Studio Arctic Fox or newer:
+SMSBridge uses a **dual-channel architecture** to ensure both automated system-level SIM binding and interactive user convenience:
 
 ```
-File → Open → C:\Users\ADMIN\Downloads\SMSBridge
+PERSONAL PROFILE (User 0)                         WORK PROFILE (User 11)
+┌─────────────────────────────────┐               ┌─────────────────────────────────┐
+│       SMS Bridge (Main)         │               │       SMS Bridge (Work)         │
+│                                 │               │                                 │
+│  ┌───────────────────────────┐  │               │  ┌───────────────────────────┐  │
+│  │ SmsReceiver               │  │  Root Direct  │  │ Google Play Services      │  │
+│  │ (Raw 3GPP PDU capture)    │──┼───────────────┼─▶│ (SMS Retriever API)       │  │
+│  └─────────────┬─────────────┘  │   Broadcast   │  │                           │  │
+│                │                │ (UID 0 / IPC) │  │  → PhonePe, Tata Neu,     │  │
+│  ┌─────────────▼─────────────┐  │               │  │    Freecharge SIM Binding │  │
+│  │ RootSmsBroadcaster        │  │               │  └───────────────────────────┘  │
+│  │ (app_process root helper) │  │               │                                 │
+│  └───────────────────────────┘  │               │  ┌───────────────────────────┐  │
+│                                 │  TCP Socket   │  │ ReceiverService           │  │
+│  ┌───────────────────────────┐  │ (127.0.0.1:   │  │ (Port 65432 Listener)     │  │
+│  │ BridgeService             │──┼────65432)────▶│  └─────────────┬─────────────┘  │
+│  │ (15s Deduplication Cache) │  │               │                │                │
+│  └─────────────▲─────────────┘  │               │  ┌─────────────▼─────────────┐  │
+│                │                │               │  │ OtpAutoFillService        │  │
+│  ┌─────────────┴─────────────┐  │               │  │ (Accessibility Auto-Fill) │  │
+│  │ BridgeNotifListener       │  │               │  ├───────────────────────────┤  │
+│  │ (Ignores SMS apps,        │  │               │  │ NotificationHelper        │  │
+│  │  whitelist filtered)      │  │               │  │ (1-Tap Copy Notification) │  │
+│  └───────────────────────────┘  │               │  └───────────────────────────┘  │
+└─────────────────────────────────┘               └─────────────────────────────────┘
 ```
 
-Then build both APKs:
+1. **System Channel (Root PDU Broadcast)**:
+   - Intercepts incoming SMS via `SmsReceiver` on User 0 and extracts the raw binary GSM/3GPP PDUs.
+   - Executes `RootSmsBroadcaster` via `su` (`app_process`) with UID 0.
+   - Dispatches `android.provider.Telephony.SMS_RECEIVED` directly to User 11 via `ActivityManager` binder IPC.
+   - Triggers Google Play Services SMS Retriever and native SMS receivers in the work profile for 100% automated SIM binding.
 
-```
-Build → Build Bundle(s) / APK(s) → Build APK(s)
-```
+2. **User Experience Channel (Local Loopback TCP)**:
+   - Forwards parsed sender, body, and timestamp over `127.0.0.1:65432`.
+   - `ReceiverService` in User 11 extracts the OTP using regex pattern matching.
+   - Injects the OTP via `OtpAutoFillService` (Accessibility Service) when an input field is present.
+   - Automatically copies the OTP to the clipboard.
+   - Posts a high-priority heads-up notification with a **"Copy OTP"** action button.
 
-APK locations after build:
-- `app-main/build/outputs/apk/debug/app-main-debug.apk`
-- `app-work/build/outputs/apk/debug/app-work-debug.apk`
+---
 
-### Step 2: Install via ADB
+## Key Features
 
+- ⚡ **Root-Powered SMS Dispatch** — Injects full 3GPP PDU binary broadcasts directly into User 11 without touching system files.
+- 🏦 **Automated SIM Binding & UPI Compatibility** — Supports PhonePe, Tata Neu, Freecharge, BHIM, Google Pay, and other banking applications.
+- 🔁 **Infinite Loop Protection** — Built-in blacklist for SMS apps (`Google Messages`, `Truecaller`, `com.android.mms`, `cn.nubia.mms`) and a 15-second deduplication cache in `BridgeService`.
+- 📋 **1-Tap OTP Copy & Notification Action** — Extracts 4–8 digit numeric and alphanumeric verification codes.
+- ✍️ **Instant OTP Auto-Fill** — Optional accessibility service (`OtpAutoFillService`) to automatically type detected OTPs into active input fields.
+- 🎯 **App Whitelist Picker** — Selectively forward notifications from specific apps using a searchable multi-select dialog.
+- 🔋 **Battery Optimization Management** — One-tap whitelist launchers and real-time status indicators in both apps to prevent OS background killing.
+- 🔒 **100% Offline & Secure** — Runs entirely on-device via local loopback (`127.0.0.1`). Zero internet permissions required for data transport.
+
+---
+
+## Installation & Setup
+
+### Requirements
+- Android 9.0 to 14.0
+- Work Profile active (via **Island**, **Shelter**, or MDM)
+- Root access (Magisk / KernelSU / APatch) on the device for automated SIM binding.
+
+---
+
+### Step 1: Download & Install APKs
+
+Download the latest releases from the [Releases](https://github.com/BibekG1/SMSBridge/releases) page:
+
+1. **Install Main App on Personal Profile (User 0)**:
+   ```bash
+   adb install -r SMSBridge-Main-v1.0.8.apk
+   ```
+
+2. **Install Work App into Work Profile (User 11)**:
+   ```bash
+   # Find your work profile user ID (usually 10, 11, or 12)
+   adb shell pm list users
+
+   # Install into the work profile (e.g., user 11)
+   adb install -r --user 11 SMSBridge-Work-v1.0.8.apk
+   ```
+
+---
+
+### Step 2: Configure Permissions
+
+#### 1. SMSBridge (Main)
+1. Open **SMS Bridge (Main)** on your Personal Profile.
+2. Tap **"Enable Notification Access"** → Allow SMS Bridge (Main).
+3. Tap **"Verify & Grant Root Access"** → Grant Superuser when prompted by Magisk/KernelSU.
+4. Tap **"Whitelist in Battery Settings"** → Set battery usage to **Unrestricted**.
+5. Toggle **"Enable Bridge"** on.
+
+#### 2. SMSBridge (Work)
+1. Open **SMS Bridge (Work)** inside your Work Profile.
+2. Toggle **"Enable Receiver"** on.
+3. Tap **"Whitelist in Battery Settings"** → Set to **Unrestricted**.
+4. *(Optional)* Tap **"Enable Auto-Fill"** to enable the accessibility service for automatic field entry.
+
+---
+
+## Essential ADB Commands for Work Profile Apps
+
+Because Android restricts inter-app communication and profile visibility by default, run the following commands via ADB or a root shell to ensure work profile apps can see each other, access browsers, and handle payment links:
+
+### 1. Package Visibility (`QUERY_ALL_PACKAGES`)
+Allows work profile apps (PhonePe, Tata Neu, Freecharge, etc.) to detect installed browsers and UPI apps:
 ```bash
-# Install main app on the default (main) profile
-adb install app-main/build/outputs/apk/debug/app-main-debug.apk
-
-# Find your work profile user ID
-adb shell pm list users
-# Look for something like: UserInfo{10:Work profile:...}
-
-# Install work app into the work profile (replace 10 with your profile ID)
-adb install --user 10 app-work/build/outputs/apk/debug/app-work-debug.apk
+adb shell su -c "appops set --user 11 com.phonepe.app QUERY_ALL_PACKAGES allow"
+adb shell su -c "appops set --user 11 com.tatadigital.tcp QUERY_ALL_PACKAGES allow"
+adb shell su -c "appops set --user 11 com.freecharge.android QUERY_ALL_PACKAGES allow"
+adb shell su -c "appops set --user 11 com.smsbridge.work QUERY_ALL_PACKAGES allow"
 ```
 
-Alternatively, copy the work APK to the device storage and open it from within the work profile file manager to sideload.
+### 2. Cross-Profile Interaction (`INTERACT_ACROSS_PROFILES`)
+Allows apps to initiate and receive cross-profile intents (such as opening payment URLs in personal profile browsers):
+```bash
+adb shell su -c "
+pm grant --user 11 com.phonepe.app android.permission.INTERACT_ACROSS_PROFILES
+appops set --user 11 com.phonepe.app INTERACT_ACROSS_PROFILES allow
+pm grant --user 0 com.phonepe.app android.permission.INTERACT_ACROSS_PROFILES
+appops set --user 0 com.phonepe.app INTERACT_ACROSS_PROFILES allow
+"
+```
 
-### Step 3: Configure Main Profile App
+### 3. Island Cross-Profile Intent Filters
+To make web links (`http`, `https`) or payment links (`upi://pay`) clicked inside the Work Profile open in your Personal Profile apps:
+1. Open the **Island** app.
+2. Go to **Settings** → **Island** → **Cross-profile intent filters**.
+3. Enable **Web URLs** and **UPI / Custom URIs**.
 
-1. Open **SMS Bridge (Main)** from the main profile launcher
-2. Tap **"Enable Notification Access"** → Find "SMS Bridge (Main)" in the list and enable it
-3. Tap **"Set as Default SMS App"** if you want SMS interception (optional — notification relay works without this)
-4. Toggle **"Enable Bridge"** to start the foreground service
-5. *(Optional)* Enable **App Filter** to whitelist specific apps
-
-### Step 4: Configure Work Profile App
-
-1. Switch to the work profile and open **SMS Bridge (Work)**
-2. Toggle **"Enable Receiver"** — the service starts listening on port 65432
-3. Leave the app running (or it will be kept alive by the foreground service)
-
-## How OTP Auto-Copy Works
-
-1. An OTP SMS arrives → `SmsReceiver` picks it up in the main profile
-2. `BridgeService` serializes it to JSON and connects to `127.0.0.1:65432`
-3. `ReceiverService` in the work profile receives the JSON
-4. `OtpDetector` runs regex patterns:
-   - Digit OTP: `\b\d{4,8}\b`
-   - Alphanumeric OTP: `\b[A-Z0-9]{6,8}\b` (only when OTP keywords present)
-   - Keywords: `otp`, `code`, `verify`, `pin`, `token`, `passcode`, etc.
-5. If an OTP is found:
-   - It is **auto-copied** to the work profile clipboard
-   - A high-priority notification appears with a **"Copy OTP: XXXXXX"** action button
-   - The OTP is displayed prominently in the app's message list
-
-## Permissions Required
-
-### Main Profile App
-| Permission | Purpose |
-|---|---|
-| `RECEIVE_SMS` | Intercept incoming SMS |
-| `READ_SMS` | Read SMS message content |
-| `INTERNET` | Loopback socket communication |
-| `FOREGROUND_SERVICE` | Keep bridge service alive |
-| `POST_NOTIFICATIONS` | Show service status notification |
-| `INTERACT_ACROSS_PROFILES` | CrossProfileApps API (future) |
-| Notification Listener (Settings) | Read other apps' notifications |
-
-### Work Profile App
-| Permission | Purpose |
-|---|---|
-| `INTERNET` | Loopback socket server |
-| `FOREGROUND_SERVICE` | Keep receiver service alive |
-| `POST_NOTIFICATIONS` | Show forwarded message notifications |
-| `INTERACT_ACROSS_PROFILES` | CrossProfileApps API (future) |
-
-## Technical Limitations
-
-1. **Loopback socket cross-profile**: Works because both profiles share the same Linux network namespace on Android — `127.0.0.1` is accessible from both. However, this behavior is undocumented and may change in future Android versions.
-
-2. **No CrossProfileApps fallback yet**: The `CrossProfileApps` API requires enterprise MDM setup or the same signing key AND the device owner granting `INTERACT_ACROSS_PROFILES`. The socket approach is the reliable fallback.
-
-3. **Background process limits**: Android 9+ aggressively kills background processes. Both services use `startForeground()` with persistent notifications to stay alive. Battery optimization must be disabled for both apps.
-
-4. **Clipboard API restriction (Android 10+)**: Auto-clipboard copy from a background service requires the app to be in the foreground or have special privileges. The `ReceiverService` dispatches clipboard writes on the main thread immediately upon receiving data, which works while the service is in the foreground state.
-
-5. **NotificationListenerService in work profile**: The notification listener runs in the main profile only. Work profile notifications are NOT relayed back (that would require a second listener in the work profile).
-
-6. **SMS as Default App**: On Android 10+, reading SMS requires the app to be set as the default SMS app (via `RoleManager`). The notification relay path works without this.
+---
 
 ## Project Structure
 
 ```
 SMSBridge/
-├── settings.gradle.kts
-├── build.gradle.kts
-├── gradle.properties
-├── gradle/wrapper/gradle-wrapper.properties
-├── app-main/
-│   ├── build.gradle.kts
-│   └── src/main/
-│       ├── AndroidManifest.xml
-│       ├── kotlin/com/smsbridge/main/
-│       │   ├── BridgeMessage.kt       ← Shared data model
-│       │   ├── MessageStore.kt        ← In-memory ring buffer (3 msgs)
-│       │   ├── FilterManager.kt       ← App whitelist + SharedPrefs
-│       │   ├── SmsReceiver.kt         ← BroadcastReceiver for SMS
-│       │   ├── NotificationListenerService.kt ← Reads other apps' notifs
-│       │   ├── BridgeService.kt       ← Foreground service + socket client
-│       │   └── MainActivity.kt        ← UI + MessageAdapter
-│       └── res/
-│           ├── layout/activity_main.xml
-│           ├── layout/item_message.xml
-│           └── values/{strings,colors,themes}.xml
-└── app-work/
-    ├── build.gradle.kts
-    └── src/main/
-        ├── AndroidManifest.xml
-        ├── kotlin/com/smsbridge/work/
-        │   ├── ReceivedMessage.kt     ← Data model with OTP field
-        │   ├── MessageStore.kt        ← In-memory ring buffer (3 msgs)
-        │   ├── OtpDetector.kt         ← Regex OTP extraction
-        │   ├── CopyReceiver.kt        ← Notification action handler
-        │   ├── NotificationHelper.kt  ← Shows high-priority notifications
-        │   ├── ReceiverService.kt     ← Foreground service + socket server
-        │   └── MainActivity.kt        ← UI + WorkMessageAdapter
-        └── res/
-            ├── layout/activity_main.xml
-            ├── layout/item_message.xml
-            └── values/{strings,colors,themes}.xml
+├── app-main/                             # Main Profile Application (User 0)
+│   ├── src/main/
+│   │   ├── AndroidManifest.xml
+│   │   ├── kotlin/com/smsbridge/main/
+│   │   │   ├── BridgeMessage.kt          # Unified data model
+│   │   │   ├── BridgeNotificationListener.kt # Notification listener with loop protection
+│   │   │   ├── BridgeService.kt          # Socket client with 15s deduplication
+│   │   │   ├── FilterManager.kt          # Whitelist storage & package filtering
+│   │   │   ├── MainActivity.kt           # UI, root status, battery whitelist
+│   │   │   ├── MessageStore.kt           # In-memory circular message log
+│   │   │   ├── RootHelper.kt             # Superuser execution & verification helper
+│   │   │   ├── RootSmsBroadcaster.kt     # app_process root binary PDU broadcaster
+│   │   │   └── SmsReceiver.kt            # OS SMS listener & root forwarder
+│   │   └── res/layout/activity_main.xml
+│   └── build.gradle.kts
+│
+├── app-work/                             # Work Profile Application (User 11)
+│   ├── src/main/
+│   │   ├── AndroidManifest.xml
+│   │   ├── kotlin/com/smsbridge/work/
+│   │   │   ├── CopyReceiver.kt           # Handles 1-tap notification copy actions
+│   │   │   ├── MainActivity.kt           # UI, receiver controls, accessibility toggle
+│   │   │   ├── MessageStore.kt           # Circular log of received payloads
+│   │   │   ├── NotificationHelper.kt     # High-priority heads-up notification builder
+│   │   │   ├── OtpAutoFillService.kt     # Accessibility service for input field injection
+│   │   │   ├── OtpDetector.kt            # Regex OTP extraction engine
+│   │   │   ├── ReceivedMessage.kt        # Data model with parsed OTP field
+│   │   │   └── ReceiverService.kt        # TCP ServerSocket daemon on port 65432
+│   │   └── res/
+│   │       ├── layout/activity_main.xml
+│   │       └── xml/accessibility_service_config.xml
+│   └── build.gradle.kts
+│
+└── .github/workflows/release.yml         # CI/CD Automated GitHub Release workflow
 ```
+
+---
 
 ## Troubleshooting
 
-**Messages not arriving in work profile:**
-- Ensure both apps are running (check notification shade for persistent notifications)
-- Disable battery optimization for both apps: Settings → Apps → SMS Bridge → Battery → Unrestricted
-- Verify the work profile app shows "Receiver: ACTIVE ✓"
+| Issue | Cause | Solution |
+|---|---|---|
+| **Root Forwarding: Not Detected** | Magisk did not prompt or root was denied | Open Magisk / KernelSU app, go to Superuser section, and enable permissions for **SMS Bridge (Main)**. |
+| **SIM Binding Times Out** | Work profile GMS did not receive broadcast | Verify the work profile user ID matches (default is User 11). Check via `adb shell pm list users`. |
+| **Notification Loop** | SMS app notification being forwarded | Ensure SMS apps (Google Messages, Truecaller) are not manually whitelisted in App Filter. In v1.0.8, SMS apps are automatically ignored. |
+| **Service Killed After Sometime** | OS battery saver stopping background service | In phone settings, set Battery Optimization to **Unrestricted** for both apps. |
+| **Receiver: INACTIVE after reboot** | Android blocks background auto-launch on reboot | Open **SMS Bridge (Work)** once after restarting your phone to initialize the socket listener. |
 
-**OTP not auto-copied:**
-- Android 10+ restricts background clipboard access. If auto-copy fails, use the "Copy OTP" button in the notification.
+---
 
-**Notification listener not working:**
-- Go to Settings → Apps & notifications → Special app access → Notification access → Enable SMS Bridge (Main)
+## Security & Privacy
 
-**"Receiver: INACTIVE" after phone restart:**
-- Both services must be manually restarted after reboot (auto-start is blocked on most ROMs). Open both apps after reboot.
+- **No Remote Servers**: Zero external network traffic. Communication runs entirely over localhost loopback (`127.0.0.1`).
+- **No Permanent Database**: Messages are held in an in-memory ring buffer (last 10 items) and cleared when the service stops.
+- **Root Safety**: The root broadcaster does not modify `/system` or vendor partitions. It executes an isolated Java binary (`app_process`) in runtime memory to trigger the standard Android telephony intent.
 
 ---
 
