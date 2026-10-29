@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
+import android.net.Uri
 import android.os.*
 import android.provider.Settings
 import android.text.Editable
@@ -60,6 +61,7 @@ class MainActivity : AppCompatActivity() {
         checkAndRequestPermissions()
         setupUI()
         syncBridgeState()
+        updateBatteryStatus()
         updateFilterUI()
 
         MessageStore.onNewMessage = { msg ->
@@ -114,6 +116,10 @@ class MainActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 Toast.makeText(this, "Unable to open Notification Listener settings: ${e.message}", Toast.LENGTH_SHORT).show()
             }
+        }
+
+        binding.btnBatterySettings.setOnClickListener {
+            openBatteryOptimizationSettings()
         }
 
         binding.switchFilter.isChecked = FilterManager.isFilterEnabled
@@ -277,9 +283,39 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
+    private fun updateBatteryStatus() {
+        val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager
+        val isIgnored = pm?.isIgnoringBatteryOptimizations(packageName) == true
+        if (isIgnored) {
+            binding.tvBatteryStatus.text = "Battery Optimization: Whitelisted (Unrestricted) ✓"
+            binding.tvBatteryStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_green_dark))
+            binding.btnBatterySettings.text = "Battery Optimization: Whitelisted ✓"
+        } else {
+            binding.tvBatteryStatus.text = "Battery Optimization: Optimized (May be restricted by OS)"
+            binding.tvBatteryStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_red_dark))
+            binding.btnBatterySettings.text = "Whitelist in Battery Settings"
+        }
+    }
+
+    private fun openBatteryOptimizationSettings() {
+        try {
+            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = Uri.parse("package:$packageName")
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            try {
+                startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+            } catch (e2: Exception) {
+                Toast.makeText(this, "Unable to open battery settings: ${e2.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         syncBridgeState()
+        updateBatteryStatus()
     }
 }
 

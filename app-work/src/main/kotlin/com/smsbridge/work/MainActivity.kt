@@ -4,8 +4,11 @@ import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.*
+import android.provider.Settings
 import android.view.*
 import android.widget.TextView
 import android.widget.Toast
@@ -69,6 +72,10 @@ class MainActivity : AppCompatActivity() {
             adapter.clearAll()
         }
 
+        binding.btnBatterySettings.setOnClickListener {
+            openBatteryOptimizationSettings()
+        }
+
         MessageStore.onNewMessage = { msg ->
             handler.post { adapter.addMessage(msg) }
         }
@@ -78,6 +85,7 @@ class MainActivity : AppCompatActivity() {
 
         // Restore receiver toggle & service status
         syncReceiverState()
+        updateBatteryStatus()
     }
 
     private fun syncReceiverState() {
@@ -108,10 +116,40 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
+    private fun updateBatteryStatus() {
+        val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager
+        val isIgnored = pm?.isIgnoringBatteryOptimizations(packageName) == true
+        if (isIgnored) {
+            binding.tvBatteryStatus.text = "Battery Optimization: Whitelisted (Unrestricted) ✓"
+            binding.tvBatteryStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_green_dark))
+            binding.btnBatterySettings.text = "Battery Optimization: Whitelisted ✓"
+        } else {
+            binding.tvBatteryStatus.text = "Battery Optimization: Optimized (May be restricted by OS)"
+            binding.tvBatteryStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_red_dark))
+            binding.btnBatterySettings.text = "Whitelist in Battery Settings"
+        }
+    }
+
+    private fun openBatteryOptimizationSettings() {
+        try {
+            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = Uri.parse("package:$packageName")
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            try {
+                startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+            } catch (e2: Exception) {
+                Toast.makeText(this, "Unable to open battery settings: ${e2.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         adapter.setMessages(MessageStore.messages)
         syncReceiverState()
+        updateBatteryStatus()
     }
 }
 
