@@ -84,7 +84,7 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Permissions Card -->
+            <!-- Notification Access Card -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -103,9 +103,17 @@
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Permissions"
+                        android:text="Notification Listener"
                         android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle1"
                         android:textStyle="bold"
+                        android:layout_marginBottom="4dp"/>
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Grants permission to capture notifications from your selected target apps."
+                        android:textSize="12sp"
+                        android:alpha="0.7"
                         android:layout_marginBottom="12dp"/>
 
                     <Button
@@ -113,15 +121,7 @@
                         style="@style/Widget.MaterialComponents.Button"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Enable Notification Access"
-                        android:layout_marginBottom="8dp"/>
-
-                    <Button
-                        android:id="@+id/btnSmsSettings"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Set as Default SMS App"/>
+                        android:text="Enable Notification Access"/>
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>

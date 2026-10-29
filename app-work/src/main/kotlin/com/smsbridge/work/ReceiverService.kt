@@ -4,6 +4,7 @@ import android.app.*
 import android.content.*
 import android.content.pm.ServiceInfo
 import android.os.*
+import android.provider.Telephony
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.*
@@ -97,10 +98,16 @@ class ReceiverService : Service() {
             val msg = ReceivedMessage(sender, body, timestamp, sourceType, otp)
             MessageStore.addMessage(msg)
 
+            // 1. Write directly to native Android Telephony provider (content://sms/inbox)
+            // This allows other apps in the work profile that read SMS to see this message
+            writeToTelephonyProvider(applicationContext, msg)
+
             mainHandler.post {
                 try {
+                    // 2. Post high-priority notification with copy actions
                     NotificationHelper.showMessageNotification(applicationContext, msg)
-                    // Auto-copy OTP if detected
+
+                    // 3. Auto-copy OTP if detected
                     otp?.let { code ->
                         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
                         clipboard?.setPrimaryClip(ClipData.newPlainText("OTP", code))
@@ -112,6 +119,23 @@ class ReceiverService : Service() {
             }
         } catch (e: Exception) {
             Log.e(TAG, "JSON parse error: ${e.message}")
+        }
+    }
+
+    private fun writeToTelephonyProvider(context: Context, msg: ReceivedMessage) {
+        try {
+            val values = ContentValues().apply {
+                put(Telephony.Sms.ADDRESS, msg.sender)
+                put(Telephony.Sms.BODY, msg.body)
+                put(Telephony.Sms.DATE, msg.timestamp)
+                put(Telephony.Sms.READ, 1)
+                put(Telephony.Sms.TYPE, Telephony.Sms.MESSAGE_TYPE_INBOX)
+            }
+            val uri = context.contentResolver.insert(Telephony.Sms.Inbox.CONTENT_URI, values)
+            Log.d(TAG, "Inserted into Telephony SMS provider: $uri")
+            context.contentResolver.notifyChange(Telephony.Sms.CONTENT_URI, null)
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not write to SMS inbox (set as default SMS app in work profile to enable): ${e.message}")
         }
     }
 

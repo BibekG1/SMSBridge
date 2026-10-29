@@ -109,24 +109,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        binding.btnSmsSettings.setOnClickListener {
-            try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    val roleManager = getSystemService(RoleManager::class.java)
-                    if (roleManager != null && roleManager.isRoleAvailable(RoleManager.ROLE_SMS)) {
-                        @Suppress("DEPRECATION")
-                        startActivityForResult(roleManager.createRequestRoleIntent(RoleManager.ROLE_SMS), 100)
-                    } else {
-                        startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
-                    }
-                } else {
-                    startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
-                }
-            } catch (e: Exception) {
-                Toast.makeText(this, "Default SMS setting not supported directly: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
-        }
-
         binding.switchFilter.isChecked = FilterManager.isFilterEnabled
         binding.switchFilter.setOnCheckedChangeListener { buttonView, checked ->
             if (buttonView.isPressed) {

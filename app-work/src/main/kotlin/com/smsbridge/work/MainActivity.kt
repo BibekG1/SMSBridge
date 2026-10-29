@@ -1,11 +1,14 @@
 package com.smsbridge.work
 
 import android.Manifest
+import android.app.role.RoleManager
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.*
+import android.provider.Settings
 import android.view.*
 import android.widget.TextView
 import android.widget.Toast
@@ -58,6 +61,24 @@ class MainActivity : AppCompatActivity() {
                     binding.tvStatus.text = "Receiver: INACTIVE"
                     binding.tvStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_red_dark))
                 }
+            }
+        }
+
+        binding.btnSetDefaultWorkSms.setOnClickListener {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val roleManager = getSystemService(RoleManager::class.java)
+                    if (roleManager != null && roleManager.isRoleAvailable(RoleManager.ROLE_SMS)) {
+                        @Suppress("DEPRECATION")
+                        startActivityForResult(roleManager.createRequestRoleIntent(RoleManager.ROLE_SMS), 200)
+                    } else {
+                        startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
+                    }
+                } else {
+                    startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
+                }
+            } catch (e: Exception) {
+                Toast.makeText(this, "Could not request SMS app role: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
 
