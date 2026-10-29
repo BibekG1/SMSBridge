@@ -4,10 +4,12 @@ import android.app.*
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import java.util.concurrent.atomic.AtomicInteger
 
 object NotificationHelper {
+    private const val TAG = "SMSBridge-NotifHelper"
     const val CHANNEL_ID = "smsbridge_work_messages"
     const val CHANNEL_NAME = "Forwarded Messages"
     private val notifCounter = AtomicInteger(0)
@@ -20,24 +22,21 @@ object NotificationHelper {
                 description = "Messages forwarded from main profile"
                 enableVibration(true)
             }
-            context.getSystemService(NotificationManager::class.java)
-                .createNotificationChannel(channel)
+            context.getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
         }
     }
 
     fun showMessageNotification(context: Context, msg: ReceivedMessage) {
+        createChannel(context)
         val notifId = 3000 + (notifCounter.getAndIncrement() % 3)
 
         // Title: show sender exactly as received (VM-BANK, +919XXXXXXXXX, etc.)
-        // If OTP detected, prefix the title so it's immediately visible in shade
         val title = if (msg.otp != null) "OTP ${msg.otp} \u2190 ${msg.sender}" else msg.sender
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_email)
             .setContentTitle(title)
-            // Short preview in collapsed notification
             .setContentText(msg.body)
-            // Full untruncated body when expanded — exactly as received
             .setStyle(
                 NotificationCompat.BigTextStyle()
                     .bigText(msg.body)
@@ -84,7 +83,10 @@ object NotificationHelper {
             pendingCopyFull
         )
 
-        context.getSystemService(NotificationManager::class.java)
-            .notify(notifId, builder.build())
+        try {
+            context.getSystemService(NotificationManager::class.java)?.notify(notifId, builder.build())
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to post notification: ${e.message}")
+        }
     }
 }

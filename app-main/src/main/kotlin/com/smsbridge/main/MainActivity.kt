@@ -23,10 +23,13 @@ class MainActivity : AppCompatActivity() {
     private val messageAdapter = MessageAdapter()
     private val handler = Handler(Looper.getMainLooper())
 
-    private val notifPermLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (!granted) Toast.makeText(this, "Notification permission denied", Toast.LENGTH_SHORT).show()
+    private val permissionsLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val smsGranted = permissions[Manifest.permission.RECEIVE_SMS] ?: false
+        if (!smsGranted) {
+            Toast.makeText(this, "SMS permission needed to intercept incoming SMS", Toast.LENGTH_SHORT).show()
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -36,7 +39,7 @@ class MainActivity : AppCompatActivity() {
         setSupportActionBar(binding.toolbar)
 
         FilterManager.init(this)
-        requestNotificationPermission()
+        checkAndRequestPermissions()
         setupUI()
         updateStatus()
 
@@ -48,12 +51,21 @@ class MainActivity : AppCompatActivity() {
         MessageStore.messages.forEach { messageAdapter.addMessage(it) }
     }
 
-    private fun requestNotificationPermission() {
+    private fun checkAndRequestPermissions() {
+        val permissions = mutableListOf<String>()
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECEIVE_SMS) != PackageManager.PERMISSION_GRANTED) {
+            permissions.add(Manifest.permission.RECEIVE_SMS)
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
+            permissions.add(Manifest.permission.READ_SMS)
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED) {
-                notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                permissions.add(Manifest.permission.POST_NOTIFICATIONS)
             }
+        }
+        if (permissions.isNotEmpty()) {
+            permissionsLauncher.launch(permissions.toTypedArray())
         }
     }
 
@@ -63,23 +75,35 @@ class MainActivity : AppCompatActivity() {
             adapter = messageAdapter
         }
 
-        binding.switchBridge.setOnCheckedChangeListener { _, isChecked ->
-            if (isChecked) startBridgeService() else stopBridgeService()
+        binding.switchBridge.setOnCheckedChangeListener { buttonView, isChecked ->
+            if (buttonView.isPressed) {
+                if (isChecked) startBridgeService() else stopBridgeService()
+            }
         }
 
         binding.btnNotifSettings.setOnClickListener {
-            startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+            try {
+                startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+            } catch (e: Exception) {
+                Toast.makeText(this, "Unable to open Notification Listener settings: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
         }
 
         binding.btnSmsSettings.setOnClickListener {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val roleManager = getSystemService(RoleManager::class.java)
-                if (roleManager.isRoleAvailable(RoleManager.ROLE_SMS)) {
-                    @Suppress("DEPRECATION")
-                    startActivityForResult(roleManager.createRequestRoleIntent(RoleManager.ROLE_SMS), 100)
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val roleManager = getSystemService(RoleManager::class.java)
+                    if (roleManager != null && roleManager.isRoleAvailable(RoleManager.ROLE_SMS)) {
+                        @Suppress("DEPRECATION")
+                        startActivityForResult(roleManager.createRequestRoleIntent(RoleManager.ROLE_SMS), 100)
+                    } else {
+                        startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
+                    }
+                } else {
+                    startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
                 }
-            } else {
-                startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
+            } catch (e: Exception) {
+                Toast.makeText(this, "Default SMS setting not supported directly: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -104,17 +128,25 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startBridgeService() {
-        startForegroundService(Intent(this, BridgeService::class.java))
-        updateStatusUI(true)
+        try {
+            startForegroundService(Intent(this, BridgeService::class.java))
+            updateStatusUI(true)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Failed to start Bridge: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun stopBridgeService() {
-        stopService(Intent(this, BridgeService::class.java))
-        updateStatusUI(false)
+        try {
+            stopService(Intent(this, BridgeService::class.java))
+            updateStatusUI(false)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Failed to stop Bridge: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun updateStatus() {
-        val notifEnabled = NotificationListenerService.isEnabled(this)
+        val notifEnabled = BridgeNotificationListener.isEnabled(this)
         binding.switchBridge.isChecked = notifEnabled
         updateStatusUI(notifEnabled)
 
@@ -125,8 +157,8 @@ class MainActivity : AppCompatActivity() {
     private fun updateStatusUI(active: Boolean) {
         binding.tvBridgeStatus.text = if (active) "Bridge: ACTIVE ✓" else "Bridge: INACTIVE"
         binding.tvBridgeStatus.setTextColor(
-            if (active) getColor(android.R.color.holo_green_dark)
-            else getColor(android.R.color.holo_red_dark)
+            if (active) ContextCompat.getColor(this, android.R.color.holo_green_dark)
+            else ContextCompat.getColor(this, android.R.color.holo_red_dark)
         )
     }
 

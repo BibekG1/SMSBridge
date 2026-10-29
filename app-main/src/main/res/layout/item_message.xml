@@ -8,7 +8,7 @@
     app:cardCornerRadius="6dp"
     app:cardElevation="1dp"
     app:strokeWidth="1dp"
-    app:strokeColor="?attr/colorOutline">
+    app:strokeColor="@color/colorOutline">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -43,7 +43,7 @@
                 android:layout_marginEnd="8dp"
                 android:text="[SMS]"
                 android:textSize="11sp"
-                android:textColor="?attr/colorPrimary"
+                android:textColor="@color/colorPrimary"
                 android:background="@drawable/bg_badge"
                 android:paddingStart="6dp"
                 android:paddingEnd="6dp"

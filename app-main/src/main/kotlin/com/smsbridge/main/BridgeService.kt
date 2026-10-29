@@ -3,6 +3,7 @@ package com.smsbridge.main
 import android.app.*
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
@@ -33,7 +34,11 @@ class BridgeService : Service() {
                 action = ACTION_SEND
                 putExtra(EXTRA_JSON, json)
             }
-            context.startForegroundService(intent)
+            try {
+                context.startForegroundService(intent)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to start BridgeService: ${e.message}")
+            }
         }
     }
 
@@ -45,7 +50,12 @@ class BridgeService : Service() {
         super.onCreate()
         FilterManager.init(this)
         createNotificationChannel()
-        startForeground(NOTIF_ID, buildForegroundNotification())
+        val notif = buildForegroundNotification()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIF_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        } else {
+            startForeground(NOTIF_ID, notif)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -84,7 +94,7 @@ class BridgeService : Service() {
                 CHANNEL_ID, "SMS Bridge Service",
                 NotificationManager.IMPORTANCE_LOW
             ).apply { description = "SMS Bridge is actively running" }
-            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+            getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
         }
     }
 

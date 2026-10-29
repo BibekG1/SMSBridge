@@ -2,6 +2,7 @@ package com.smsbridge.work
 
 import android.app.*
 import android.content.*
+import android.content.pm.ServiceInfo
 import android.os.*
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -20,11 +21,19 @@ class ReceiverService : Service() {
         const val PORT = 65432
 
         fun start(context: Context) {
-            context.startForegroundService(Intent(context, ReceiverService::class.java))
+            try {
+                context.startForegroundService(Intent(context, ReceiverService::class.java))
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to start ReceiverService: ${e.message}")
+            }
         }
 
         fun stop(context: Context) {
-            context.stopService(Intent(context, ReceiverService::class.java))
+            try {
+                context.stopService(Intent(context, ReceiverService::class.java))
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to stop ReceiverService: ${e.message}")
+            }
         }
     }
 
@@ -38,7 +47,12 @@ class ReceiverService : Service() {
         super.onCreate()
         NotificationHelper.createChannel(this)
         createServiceChannel()
-        startForeground(NOTIF_ID, buildServiceNotification())
+        val notif = buildServiceNotification()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIF_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        } else {
+            startForeground(NOTIF_ID, notif)
+        }
         scope.launch { startListening() }
         Log.d(TAG, "ReceiverService started")
     }
@@ -84,12 +98,16 @@ class ReceiverService : Service() {
             MessageStore.addMessage(msg)
 
             mainHandler.post {
-                NotificationHelper.showMessageNotification(applicationContext, msg)
-                // Auto-copy OTP if detected
-                otp?.let { code ->
-                    val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    clipboard.setPrimaryClip(ClipData.newPlainText("OTP", code))
-                    Log.d(TAG, "OTP auto-copied: $code")
+                try {
+                    NotificationHelper.showMessageNotification(applicationContext, msg)
+                    // Auto-copy OTP if detected
+                    otp?.let { code ->
+                        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                        clipboard?.setPrimaryClip(ClipData.newPlainText("OTP", code))
+                        Log.d(TAG, "OTP auto-copied: $code")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error displaying notification or copying to clipboard: ${e.message}")
                 }
             }
         } catch (e: Exception) {
@@ -103,7 +121,7 @@ class ReceiverService : Service() {
                 CHANNEL_ID, "SMS Bridge Receiver Service",
                 NotificationManager.IMPORTANCE_LOW
             )
-            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+            getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
         }
     }
 

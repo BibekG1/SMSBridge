@@ -8,7 +8,7 @@ import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
 
-class NotificationListenerService : NotificationListenerService() {
+class BridgeNotificationListener : NotificationListenerService() {
     companion object {
         private const val TAG = "SMSBridge-NotifListener"
 
@@ -16,7 +16,7 @@ class NotificationListenerService : NotificationListenerService() {
             val flat = Settings.Secure.getString(
                 context.contentResolver, "enabled_notification_listeners"
             ) ?: return false
-            val cn = ComponentName(context, NotificationListenerService::class.java)
+            val cn = ComponentName(context, BridgeNotificationListener::class.java)
             return flat.contains(cn.flattenToString())
         }
     }

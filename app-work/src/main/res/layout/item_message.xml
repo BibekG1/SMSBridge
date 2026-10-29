@@ -8,7 +8,7 @@
     app:cardCornerRadius="8dp"
     app:cardElevation="2dp"
     app:strokeWidth="1dp"
-    app:strokeColor="?attr/colorOutline">
+    app:strokeColor="@color/colorOutline">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -31,7 +31,7 @@
                 android:layout_weight="1"
                 android:textStyle="bold"
                 android:textSize="14sp"
-                android:textColor="?attr/colorPrimary"
+                android:textColor="@color/colorPrimary"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:text="VM-SENDER"/>
@@ -51,8 +51,8 @@
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
-            android:background="?attr/colorOutline"
-            android:alpha="0.4"
+            android:background="@color/colorOutline"
+            android:alpha="0.6"
             android:layout_marginBottom="8dp"/>
 
         <!-- Full message body — NO truncation, shown exactly as received (like SMS app) -->

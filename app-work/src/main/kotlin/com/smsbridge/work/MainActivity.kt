@@ -47,15 +47,17 @@ class MainActivity : AppCompatActivity() {
             adapter = this@MainActivity.adapter
         }
 
-        binding.switchReceiver.setOnCheckedChangeListener { _, isChecked ->
-            if (isChecked) {
-                ReceiverService.start(this)
-                binding.tvStatus.text = "Receiver: ACTIVE \u2713"
-                binding.tvStatus.setTextColor(getColor(android.R.color.holo_green_dark))
-            } else {
-                ReceiverService.stop(this)
-                binding.tvStatus.text = "Receiver: INACTIVE"
-                binding.tvStatus.setTextColor(getColor(android.R.color.holo_red_dark))
+        binding.switchReceiver.setOnCheckedChangeListener { buttonView, isChecked ->
+            if (buttonView.isPressed) {
+                if (isChecked) {
+                    ReceiverService.start(this)
+                    binding.tvStatus.text = "Receiver: ACTIVE \u2713"
+                    binding.tvStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_green_dark))
+                } else {
+                    ReceiverService.stop(this)
+                    binding.tvStatus.text = "Receiver: INACTIVE"
+                    binding.tvStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_red_dark))
+                }
             }
         }
 
@@ -100,14 +102,10 @@ class WorkMessageAdapter : RecyclerView.Adapter<WorkMessageAdapter.VH>() {
 
     inner class VH(val view: View) : RecyclerView.ViewHolder(view) {
         val tvSender: TextView = view.findViewById(R.id.tvSender)
-        // Full body — no truncation, shown exactly like an SMS app
         val tvBody: TextView = view.findViewById(R.id.tvBody)
         val tvTime: TextView = view.findViewById(R.id.tvTime)
-        // OTP chip — visible only when OTP detected
         val tvOtp: TextView = view.findViewById(R.id.tvOtp)
-        // Copy OTP button — visible only when OTP detected
         val btnCopyOtp: MaterialButton = view.findViewById(R.id.btnCopyOtp)
-        // Copy Full SMS — always visible so user can paste entire raw message into any app
         val btnCopySms: MaterialButton = view.findViewById(R.id.btnCopySms)
     }
 
@@ -118,13 +116,8 @@ class WorkMessageAdapter : RecyclerView.Adapter<WorkMessageAdapter.VH>() {
     override fun onBindViewHolder(holder: VH, position: Int) {
         val msg = items[position]
 
-        // Sender shown exactly as received: VM-HDFC, +919876543210, AM-PAYTM, etc.
         holder.tvSender.text = msg.sender
-
-        // Full raw body — including any trailing app-hash lines (e.g., pgft1w9U6nf)
-        // No maxLines limit here; the layout also has no maxLines
         holder.tvBody.text = msg.body
-
         holder.tvTime.text = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
             .format(Date(msg.timestamp))
 
@@ -142,7 +135,7 @@ class WorkMessageAdapter : RecyclerView.Adapter<WorkMessageAdapter.VH>() {
             holder.btnCopyOtp.visibility = View.GONE
         }
 
-        // Copy Full SMS — always available; pastes the entire raw SMS body
+        // Copy Full SMS
         holder.btnCopySms.setOnClickListener {
             copyToClipboard(holder.view.context, msg.body, "Full SMS")
         }
@@ -151,8 +144,12 @@ class WorkMessageAdapter : RecyclerView.Adapter<WorkMessageAdapter.VH>() {
     override fun getItemCount() = items.size
 
     private fun copyToClipboard(context: Context, text: String, label: String) {
-        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText(label, text))
-        Toast.makeText(context, "$label copied!", Toast.LENGTH_SHORT).show()
+        try {
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+            clipboard?.setPrimaryClip(ClipData.newPlainText(label, text))
+            Toast.makeText(context, "$label copied!", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Toast.makeText(context, "Could not copy: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 }

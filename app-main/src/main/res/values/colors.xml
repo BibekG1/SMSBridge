@@ -6,4 +6,5 @@
     <color name="colorSuccess">#4CAF50</color>
     <color name="colorError">#F44336</color>
     <color name="colorSurface">#FFFFFF</color>
+    <color name="colorOutline">#E0E0E0</color>
 </resources>
