@@ -22,6 +22,43 @@ class BridgeService : Service() {
         private const val ACTION_SEND = "com.smsbridge.main.ACTION_SEND"
         private const val EXTRA_JSON = "json"
 
+        @Volatile
+        var isRunning: Boolean = false
+            private set
+
+        fun start(context: Context) {
+            try {
+                val intent = Intent(context, BridgeService::class.java)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to start BridgeService: ${e.message}")
+            }
+        }
+
+        fun stop(context: Context) {
+            try {
+                context.stopService(Intent(context, BridgeService::class.java))
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to stop BridgeService: ${e.message}")
+            }
+        }
+
+        fun isRunning(context: Context): Boolean {
+            if (isRunning) return true
+            val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager ?: return false
+            @Suppress("DEPRECATION")
+            for (service in am.getRunningServices(Int.MAX_VALUE)) {
+                if (BridgeService::class.java.name == service.service.className) {
+                    return true
+                }
+            }
+            return false
+        }
+
         fun sendMessage(context: Context, msg: BridgeMessage) {
             val json = JSONObject().apply {
                 put("id", msg.id)
@@ -48,6 +85,7 @@ class BridgeService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        isRunning = true
         FilterManager.init(this)
         createNotificationChannel()
         val notif = buildForegroundNotification()
@@ -59,6 +97,7 @@ class BridgeService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        isRunning = true
         if (intent?.action == ACTION_SEND) {
             val json = intent.getStringExtra(EXTRA_JSON) ?: return START_STICKY
             scope.launch { sendViaSocket(json) }
@@ -111,6 +150,7 @@ class BridgeService : Service() {
     }
 
     override fun onDestroy() {
+        isRunning = false
         scope.cancel()
         super.onDestroy()
     }

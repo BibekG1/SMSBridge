@@ -1,8 +1,6 @@
 package com.smsbridge.main
 
 import android.Manifest
-import android.app.Dialog
-import android.app.role.RoleManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -41,6 +39,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private val messageAdapter = MessageAdapter()
     private val handler = Handler(Looper.getMainLooper())
+    private var isUpdatingUI = false
 
     private val permissionsLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -60,7 +59,7 @@ class MainActivity : AppCompatActivity() {
         FilterManager.init(this)
         checkAndRequestPermissions()
         setupUI()
-        updateStatus()
+        syncBridgeState()
         updateFilterUI()
 
         MessageStore.onNewMessage = { msg ->
@@ -95,9 +94,17 @@ class MainActivity : AppCompatActivity() {
             adapter = messageAdapter
         }
 
-        binding.switchBridge.setOnCheckedChangeListener { buttonView, isChecked ->
-            if (buttonView.isPressed) {
-                if (isChecked) startBridgeService() else stopBridgeService()
+        binding.switchBridge.setOnCheckedChangeListener { _, isChecked ->
+            if (isUpdatingUI) return@setOnCheckedChangeListener
+            getSharedPreferences("smsbridge_main_prefs", Context.MODE_PRIVATE)
+                .edit()
+                .putBoolean("bridge_enabled", isChecked)
+                .apply()
+
+            if (isChecked) {
+                startBridgeService()
+            } else {
+                stopBridgeService()
             }
         }
 
@@ -110,11 +117,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.switchFilter.isChecked = FilterManager.isFilterEnabled
-        binding.switchFilter.setOnCheckedChangeListener { buttonView, checked ->
-            if (buttonView.isPressed) {
-                FilterManager.isFilterEnabled = checked
-                updateFilterUI()
-            }
+        binding.switchFilter.setOnCheckedChangeListener { _, checked ->
+            FilterManager.isFilterEnabled = checked
+            updateFilterUI()
         }
 
         binding.btnSelectApps.setOnClickListener {
@@ -233,29 +238,34 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startBridgeService() {
-        try {
-            startForegroundService(Intent(this, BridgeService::class.java))
-            updateStatusUI(true)
-        } catch (e: Exception) {
-            Toast.makeText(this, "Failed to start Bridge: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
+        BridgeService.start(this)
+        updateStatusUI(true)
     }
 
     private fun stopBridgeService() {
-        try {
-            stopService(Intent(this, BridgeService::class.java))
-            updateStatusUI(false)
-        } catch (e: Exception) {
-            Toast.makeText(this, "Failed to stop Bridge: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
+        BridgeService.stop(this)
+        updateStatusUI(false)
     }
 
-    private fun updateStatus() {
-        val notifEnabled = BridgeNotificationListener.isEnabled(this)
-        binding.switchBridge.isChecked = notifEnabled
-        updateStatusUI(notifEnabled)
+    private fun syncBridgeState() {
+        val prefs = getSharedPreferences("smsbridge_main_prefs", Context.MODE_PRIVATE)
+        val userWantsEnabled = prefs.getBoolean("bridge_enabled", false)
+        val serviceRunning = BridgeService.isRunning(this)
 
-        val notifStatus = if (notifEnabled) "✓ Granted" else "✗ Not granted"
+        val active = if (userWantsEnabled && !serviceRunning) {
+            BridgeService.start(this)
+            true
+        } else {
+            serviceRunning || userWantsEnabled
+        }
+
+        isUpdatingUI = true
+        binding.switchBridge.isChecked = active
+        updateStatusUI(active)
+        isUpdatingUI = false
+
+        val notifEnabled = BridgeNotificationListener.isEnabled(this)
+        val notifStatus = if (notifEnabled) "✓ Granted" else "✗ Not granted (tap below to enable)"
         binding.tvNotifStatus.text = "Notification Access: $notifStatus"
     }
 
@@ -269,7 +279,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        updateStatus()
+        syncBridgeState()
     }
 }
 

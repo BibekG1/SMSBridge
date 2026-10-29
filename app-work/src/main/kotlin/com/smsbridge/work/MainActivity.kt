@@ -1,14 +1,11 @@
 package com.smsbridge.work
 
 import android.Manifest
-import android.app.role.RoleManager
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.*
-import android.provider.Settings
 import android.view.*
 import android.widget.TextView
 import android.widget.Toast
@@ -26,6 +23,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private val adapter = WorkMessageAdapter()
     private val handler = Handler(Looper.getMainLooper())
+    private var isUpdatingUI = false
 
     private val notifPermLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -50,17 +48,19 @@ class MainActivity : AppCompatActivity() {
             adapter = this@MainActivity.adapter
         }
 
-        binding.switchReceiver.setOnCheckedChangeListener { buttonView, isChecked ->
-            if (buttonView.isPressed) {
-                if (isChecked) {
-                    ReceiverService.start(this)
-                    binding.tvStatus.text = "Receiver: ACTIVE \u2713"
-                    binding.tvStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_green_dark))
-                } else {
-                    ReceiverService.stop(this)
-                    binding.tvStatus.text = "Receiver: INACTIVE"
-                    binding.tvStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_red_dark))
-                }
+        binding.switchReceiver.setOnCheckedChangeListener { _, isChecked ->
+            if (isUpdatingUI) return@setOnCheckedChangeListener
+            getSharedPreferences("smsbridge_work_prefs", Context.MODE_PRIVATE)
+                .edit()
+                .putBoolean("receiver_enabled", isChecked)
+                .apply()
+
+            if (isChecked) {
+                ReceiverService.start(this)
+                updateStatusUI(true)
+            } else {
+                ReceiverService.stop(this)
+                updateStatusUI(false)
             }
         }
 
@@ -75,11 +75,43 @@ class MainActivity : AppCompatActivity() {
 
         // Reload existing messages on open
         adapter.setMessages(MessageStore.messages)
+
+        // Restore receiver toggle & service status
+        syncReceiverState()
+    }
+
+    private fun syncReceiverState() {
+        val prefs = getSharedPreferences("smsbridge_work_prefs", Context.MODE_PRIVATE)
+        val userWantsEnabled = prefs.getBoolean("receiver_enabled", false)
+        val serviceRunning = ReceiverService.isRunning(this)
+
+        val active = if (userWantsEnabled && !serviceRunning) {
+            ReceiverService.start(this)
+            true
+        } else {
+            serviceRunning || userWantsEnabled
+        }
+
+        isUpdatingUI = true
+        binding.switchReceiver.isChecked = active
+        updateStatusUI(active)
+        isUpdatingUI = false
+    }
+
+    private fun updateStatusUI(active: Boolean) {
+        binding.tvStatus.text = if (active) "Receiver: ACTIVE \u2713" else "Receiver: INACTIVE"
+        binding.tvStatus.setTextColor(
+            ContextCompat.getColor(
+                this,
+                if (active) android.R.color.holo_green_dark else android.R.color.holo_red_dark
+            )
+        )
     }
 
     override fun onResume() {
         super.onResume()
         adapter.setMessages(MessageStore.messages)
+        syncReceiverState()
     }
 }
 

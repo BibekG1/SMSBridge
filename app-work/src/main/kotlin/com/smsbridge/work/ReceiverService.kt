@@ -11,6 +11,7 @@ import kotlinx.coroutines.*
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.SocketException
 
@@ -21,9 +22,18 @@ class ReceiverService : Service() {
         const val NOTIF_ID = 2001
         const val PORT = 65432
 
+        @Volatile
+        var isRunning: Boolean = false
+            private set
+
         fun start(context: Context) {
             try {
-                context.startForegroundService(Intent(context, ReceiverService::class.java))
+                val intent = Intent(context, ReceiverService::class.java)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to start ReceiverService: ${e.message}")
             }
@@ -36,6 +46,18 @@ class ReceiverService : Service() {
                 Log.e(TAG, "Failed to stop ReceiverService: ${e.message}")
             }
         }
+
+        fun isRunning(context: Context): Boolean {
+            if (isRunning) return true
+            val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager ?: return false
+            @Suppress("DEPRECATION")
+            for (service in am.getRunningServices(Int.MAX_VALUE)) {
+                if (ReceiverService::class.java.name == service.service.className) {
+                    return true
+                }
+            }
+            return false
+        }
     }
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -46,6 +68,7 @@ class ReceiverService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        isRunning = true
         NotificationHelper.createChannel(this)
         createServiceChannel()
         val notif = buildServiceNotification()
@@ -58,12 +81,18 @@ class ReceiverService : Service() {
         Log.d(TAG, "ReceiverService started")
     }
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        isRunning = true
+        return START_STICKY
+    }
+
     private fun CoroutineScope.startListening() {
         try {
-            serverSocket = ServerSocket(PORT).also {
-                it.reuseAddress = true
-                Log.d(TAG, "Listening on port $PORT")
+            serverSocket = ServerSocket().apply {
+                reuseAddress = true
+                bind(InetSocketAddress("127.0.0.1", PORT))
             }
+            Log.d(TAG, "Listening on port $PORT")
             while (isActive) {
                 val socket = serverSocket?.accept() ?: break
                 launch {
@@ -79,7 +108,7 @@ class ReceiverService : Service() {
                 }
             }
         } catch (e: SocketException) {
-            Log.d(TAG, "Server socket closed")
+            Log.d(TAG, "Server socket closed: ${e.message}")
         } catch (e: Exception) {
             Log.e(TAG, "Server error: ${e.message}")
         }
@@ -162,8 +191,14 @@ class ReceiverService : Service() {
     }
 
     override fun onDestroy() {
+        isRunning = false
         scope.cancel()
-        serverSocket?.close()
+        try {
+            serverSocket?.close()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error closing serverSocket: ${e.message}")
+        }
+        serverSocket = null
         Log.d(TAG, "ReceiverService stopped")
         super.onDestroy()
     }
