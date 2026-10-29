@@ -30,7 +30,8 @@ object RootSmsBroadcaster {
             val intent = Intent("android.provider.Telephony.SMS_RECEIVED").apply {
                 putExtra("pdus", pduArray)
                 putExtra("format", format)
-                addFlags(Intent.FLAG_RECEIVER_INCLUDE_BACKGROUND)
+                // 0x01000000 is FLAG_RECEIVER_INCLUDE_BACKGROUND (hidden in public SDK)
+                addFlags(0x01000000 or Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
             }
 
             val success = broadcastAsUser(intent, targetUserId)
@@ -103,3 +104,4 @@ object RootSmsBroadcaster {
         }
     }
 }
+
