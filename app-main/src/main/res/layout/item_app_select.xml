@@ -7,8 +7,8 @@
     android:gravity="center_vertical"
     android:paddingStart="16dp"
     android:paddingEnd="16dp"
-    android:paddingTop="10dp"
-    android:paddingBottom="10dp"
+    android:paddingTop="12dp"
+    android:paddingBottom="12dp"
     android:background="?attr/selectableItemBackground">
 
     <ImageView
@@ -31,7 +31,7 @@
             android:layout_height="wrap_content"
             android:textSize="15sp"
             android:textStyle="bold"
-            android:textColor="?attr/colorOnSurface"
+            android:textColor="@color/colorTextPrimary"
             android:maxLines="1"
             android:ellipsize="end"
             android:text="App Name"/>
@@ -41,8 +41,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:textSize="12sp"
-            android:textColor="?attr/colorOnSurface"
-            android:alpha="0.6"
+            android:textColor="@color/colorTextSecondary"
             android:maxLines="1"
             android:ellipsize="end"
             android:text="com.example.app"/>
@@ -57,4 +56,3 @@
         android:focusable="false"/>
 
 </LinearLayout>
-

@@ -77,14 +77,14 @@
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Port: 65432 (Local loopback)"
+                        android:text="Port: 65432 (Local loopback socket)"
                         android:textAppearance="@style/TextAppearance.MaterialComponents.Caption"
                         android:alpha="0.7"/>
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Work Profile SMS Integration Card -->
+            <!-- Work Profile Info Card -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -103,26 +103,18 @@
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Work Profile SMS Provider"
+                        android:text="Work Profile Feed Mode"
                         android:textAppearance="@style/TextAppearance.MaterialComponents.Subtitle1"
                         android:textStyle="bold"
-                        android:layout_marginBottom="4dp"/>
+                        android:layout_marginBottom="6dp"/>
 
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Makes this app the default SMS handler for this work profile. This enables other work apps (banking, enterprise) to auto-detect and read messages directly from the SMS inbox."
-                        android:textSize="12sp"
-                        android:alpha="0.7"
-                        android:lineSpacingMultiplier="1.2"
-                        android:layout_marginBottom="12dp"/>
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnSetDefaultWorkSms"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Set as Work Profile SMS App"/>
+                        android:text="✓ Auto-copies detected OTPs straight to your clipboard\n✓ Shows heads-up banner with 1-tap Copy OTP &amp; Copy Full SMS\n✓ Full raw message text and app hashes are preserved below"
+                        android:textSize="13sp"
+                        android:lineSpacingMultiplier="1.3"
+                        android:alpha="0.85"/>
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>

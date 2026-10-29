@@ -9,3 +9,4 @@ class SmsDeliverReceiver : BroadcastReceiver() {
         // Required for Android ROLE_SMS compliance
     }
 }
+

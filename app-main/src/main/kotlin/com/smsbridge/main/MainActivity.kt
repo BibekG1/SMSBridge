@@ -157,10 +157,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showAppPickerDialog() {
-        val dialog = Dialog(this, com.google.android.material.R.style.Theme_MaterialComponents_DayNight_Dialog_Alert)
         val dialogBinding = DialogSelectAppsBinding.inflate(layoutInflater)
-        dialog.setContentView(dialogBinding.root)
-        dialog.window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setView(dialogBinding.root)
+            .setCancelable(true)
+            .create()
 
         dialogBinding.pbLoadingApps.visibility = View.VISIBLE
         dialogBinding.rvAppsList.visibility = View.GONE

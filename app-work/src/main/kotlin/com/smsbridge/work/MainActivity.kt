@@ -64,24 +64,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        binding.btnSetDefaultWorkSms.setOnClickListener {
-            try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    val roleManager = getSystemService(RoleManager::class.java)
-                    if (roleManager != null && roleManager.isRoleAvailable(RoleManager.ROLE_SMS)) {
-                        @Suppress("DEPRECATION")
-                        startActivityForResult(roleManager.createRequestRoleIntent(RoleManager.ROLE_SMS), 200)
-                    } else {
-                        startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
-                    }
-                } else {
-                    startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
-                }
-            } catch (e: Exception) {
-                Toast.makeText(this, "Could not request SMS app role: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
-        }
-
         binding.btnClear.setOnClickListener {
             MessageStore.clear()
             adapter.clearAll()
