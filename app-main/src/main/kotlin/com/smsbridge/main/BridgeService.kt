@@ -26,6 +26,8 @@ class BridgeService : Service() {
         var isRunning: Boolean = false
             private set
 
+        private val recentSentMessages = LinkedHashMap<String, Long>()
+
         fun start(context: Context) {
             try {
                 val intent = Intent(context, BridgeService::class.java)
@@ -60,6 +62,21 @@ class BridgeService : Service() {
         }
 
         fun sendMessage(context: Context, msg: BridgeMessage) {
+            val now = System.currentTimeMillis()
+            synchronized(recentSentMessages) {
+                // Purge older than 15s
+                val it = recentSentMessages.entries.iterator()
+                while (it.hasNext()) {
+                    if (now - it.next().value > 15_000) it.remove()
+                }
+                val key = "${msg.sender}:${msg.body}"
+                if (recentSentMessages.containsKey(key)) {
+                    Log.d(TAG, "Dropping duplicate message within 15s: $key")
+                    return
+                }
+                recentSentMessages[key] = now
+            }
+
             val json = JSONObject().apply {
                 put("id", msg.id)
                 put("sender", msg.sender)

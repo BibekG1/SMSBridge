@@ -3,9 +3,7 @@ package com.smsbridge.work
 import android.app.*
 import android.content.*
 import android.content.pm.ServiceInfo
-import android.net.Uri
 import android.os.*
-import android.provider.Telephony
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.google.android.gms.auth.api.phone.SmsRetriever
@@ -131,22 +129,25 @@ class ReceiverService : Service() {
             val msg = ReceivedMessage(sender, body, timestamp, sourceType, otp)
             MessageStore.addMessage(msg)
 
-            // 1. Write directly to native Android Telephony provider (content://sms/inbox) as unread
-            writeToTelephonyProvider(applicationContext, msg)
-
-            // 2. Broadcast Google Play Services SMS Retriever to all work profile apps (PhonePe, Freecharge, etc.)
+            // 1. Broadcast Google Play Services SMS Retriever to all work profile apps
             broadcastSmsRetriever(applicationContext, msg)
+
+            // 2. Direct Auto-Fill into active input field on screen if OTP detected
+            otp?.let { code ->
+                Log.d(TAG, "Triggering AutoFill for OTP: $code")
+                OtpAutoFillService.fillOtpWithRetry(code)
+            }
 
             mainHandler.post {
                 try {
-                    // 3. Post high-priority notification with copy actions
+                    // 3. Post high-priority notification with 1-tap copy actions
                     NotificationHelper.showMessageNotification(applicationContext, msg)
 
-                    // 4. Auto-copy OTP if detected
+                    // 4. Auto-copy OTP to clipboard
                     otp?.let { code ->
                         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
                         clipboard?.setPrimaryClip(ClipData.newPlainText("OTP", code))
-                        Log.d(TAG, "OTP auto-copied: $code")
+                        Log.d(TAG, "OTP copied to clipboard: $code")
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Error displaying notification or copying to clipboard: ${e.message}")
@@ -161,14 +162,14 @@ class ReceiverService : Service() {
         try {
             val status = Status(CommonStatusCodes.SUCCESS)
 
-            // 1. Implicit broadcast to any app dynamically registered for SMS_RETRIEVED
+            // Implicit broadcast
             val implicitIntent = Intent(SmsRetriever.SMS_RETRIEVED_ACTION).apply {
                 putExtra(SmsRetriever.EXTRA_SMS_MESSAGE, msg.body)
                 putExtra(SmsRetriever.EXTRA_STATUS, status)
             }
             context.sendBroadcast(implicitIntent)
 
-            // 2. Explicit broadcast targeted to each installed launcher app in the work profile
+            // Targeted broadcast to each installed launcher app in the work profile
             val pm = context.packageManager
             val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
             val apps = pm.queryIntentActivities(launcherIntent, 0)
@@ -186,30 +187,6 @@ class ReceiverService : Service() {
             Log.d(TAG, "Broadcasted SmsRetriever.SMS_RETRIEVED to ${apps.size} work profile apps")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to broadcast SMS_RETRIEVED: ${e.message}")
-        }
-    }
-
-    private fun writeToTelephonyProvider(context: Context, msg: ReceivedMessage) {
-        try {
-            val values = ContentValues().apply {
-                put(Telephony.Sms.ADDRESS, msg.sender)
-                put(Telephony.Sms.BODY, msg.body)
-                put(Telephony.Sms.DATE, msg.timestamp)
-                put(Telephony.Sms.DATE_SENT, msg.timestamp)
-                put(Telephony.Sms.READ, 0)
-                put(Telephony.Sms.SEEN, 0)
-                put(Telephony.Sms.TYPE, Telephony.Sms.MESSAGE_TYPE_INBOX)
-            }
-            val uri = context.contentResolver.insert(Telephony.Sms.Inbox.CONTENT_URI, values)
-            Log.d(TAG, "Inserted into Telephony SMS provider: $uri")
-
-            context.contentResolver.notifyChange(Uri.parse("content://sms/"), null)
-            context.contentResolver.notifyChange(Uri.parse("content://sms/inbox"), null)
-            context.contentResolver.notifyChange(Telephony.Sms.CONTENT_URI, null)
-            context.contentResolver.notifyChange(Telephony.Sms.Inbox.CONTENT_URI, null)
-            uri?.let { context.contentResolver.notifyChange(it, null) }
-        } catch (e: Exception) {
-            Log.w(TAG, "Could not write to SMS inbox: ${e.message}")
         }
     }
 

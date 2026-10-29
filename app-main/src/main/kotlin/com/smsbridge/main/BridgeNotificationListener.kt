@@ -12,6 +12,17 @@ class BridgeNotificationListener : NotificationListenerService() {
     companion object {
         private const val TAG = "SMSBridge-NotifListener"
 
+        // Packages that handle SMS directly. We ignore their notifications to avoid duplicate loops
+        // since SMS is already captured natively by SmsReceiver.
+        private val SMS_APP_PACKAGES = setOf(
+            "com.google.android.apps.messaging",
+            "com.truecaller",
+            "com.android.mms",
+            "com.samsung.android.messaging",
+            "cn.nubia.mms",
+            "com.android.providers.telephony"
+        )
+
         fun isEnabled(context: Context): Boolean {
             val flat = Settings.Secure.getString(
                 context.contentResolver, "enabled_notification_listeners"
@@ -24,6 +35,10 @@ class BridgeNotificationListener : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         val pkg = sbn.packageName ?: return
         if (pkg == packageName) return // skip own notifications
+        if (SMS_APP_PACKAGES.contains(pkg)) {
+            Log.d(TAG, "Ignoring notification from SMS app $pkg to prevent feedback loop")
+            return
+        }
         if (!FilterManager.shouldForward(pkg)) return
 
         val extras = sbn.notification?.extras ?: return
@@ -42,4 +57,3 @@ class BridgeNotificationListener : NotificationListenerService() {
         BridgeService.sendMessage(applicationContext, msg)
     }
 }
-

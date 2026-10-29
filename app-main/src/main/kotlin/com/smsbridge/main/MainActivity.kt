@@ -62,6 +62,7 @@ class MainActivity : AppCompatActivity() {
         setupUI()
         syncBridgeState()
         updateBatteryStatus()
+        updateRootStatus()
         updateFilterUI()
 
         MessageStore.onNewMessage = { msg ->
@@ -120,6 +121,20 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnBatterySettings.setOnClickListener {
             openBatteryOptimizationSettings()
+        }
+
+        binding.btnGrantRoot.setOnClickListener {
+            lifecycleScope.launch(Dispatchers.IO) {
+                val ok = RootHelper.checkRoot()
+                withContext(Dispatchers.Main) {
+                    updateRootStatus()
+                    if (ok) {
+                        Toast.makeText(this@MainActivity, "Root Access Granted! SMS will broadcast to Work Profile", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this@MainActivity, "Root not detected or denied in Magisk", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
         }
 
         binding.switchFilter.isChecked = FilterManager.isFilterEnabled
@@ -312,10 +327,30 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun updateRootStatus() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val rootOk = RootHelper.isRootGranted()
+            withContext(Dispatchers.Main) {
+                if (rootOk) {
+                    binding.tvRootStatus.text = "Root Forwarding: ACTIVE (UID 0) ✓"
+                    binding.tvRootStatus.setTextColor(ContextCompat.getColor(this@MainActivity, android.R.color.holo_green_dark))
+                    binding.btnGrantRoot.text = "Root Access Granted ✓"
+                    binding.btnGrantRoot.isEnabled = false
+                } else {
+                    binding.tvRootStatus.text = "Root Forwarding: Not Detected"
+                    binding.tvRootStatus.setTextColor(ContextCompat.getColor(this@MainActivity, android.R.color.holo_red_dark))
+                    binding.btnGrantRoot.text = "Grant Root Access (Magisk/KernelSU)"
+                    binding.btnGrantRoot.isEnabled = true
+                }
+            }
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         syncBridgeState()
         updateBatteryStatus()
+        updateRootStatus()
     }
 }
 
