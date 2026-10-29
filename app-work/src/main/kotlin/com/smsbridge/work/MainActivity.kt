@@ -1,11 +1,12 @@
 package com.smsbridge.work
 
 import android.Manifest
-import android.content.*
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.pm.PackageManager
 import android.os.*
 import android.view.*
-import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -13,6 +14,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.button.MaterialButton
 import com.smsbridge.work.databinding.ActivityMainBinding
 import java.text.SimpleDateFormat
 import java.util.*
@@ -48,7 +50,7 @@ class MainActivity : AppCompatActivity() {
         binding.switchReceiver.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
                 ReceiverService.start(this)
-                binding.tvStatus.text = "Receiver: ACTIVE ✓"
+                binding.tvStatus.text = "Receiver: ACTIVE \u2713"
                 binding.tvStatus.setTextColor(getColor(android.R.color.holo_green_dark))
             } else {
                 ReceiverService.stop(this)
@@ -66,7 +68,7 @@ class MainActivity : AppCompatActivity() {
             handler.post { adapter.addMessage(msg) }
         }
 
-        // Reload existing messages
+        // Reload existing messages on open
         adapter.setMessages(MessageStore.messages)
     }
 
@@ -98,13 +100,15 @@ class WorkMessageAdapter : RecyclerView.Adapter<WorkMessageAdapter.VH>() {
 
     inner class VH(val view: View) : RecyclerView.ViewHolder(view) {
         val tvSender: TextView = view.findViewById(R.id.tvSender)
+        // Full body — no truncation, shown exactly like an SMS app
         val tvBody: TextView = view.findViewById(R.id.tvBody)
         val tvTime: TextView = view.findViewById(R.id.tvTime)
+        // OTP chip — visible only when OTP detected
         val tvOtp: TextView = view.findViewById(R.id.tvOtp)
-        val divider: View = view.findViewById(R.id.divider)
-        val layoutButtons: View = view.findViewById(R.id.layoutButtons)
-        val btnCopyOtp: Button = view.findViewById(R.id.btnCopyOtp)
-        val btnCopyFull: Button = view.findViewById(R.id.btnCopyFull)
+        // Copy OTP button — visible only when OTP detected
+        val btnCopyOtp: MaterialButton = view.findViewById(R.id.btnCopyOtp)
+        // Copy Full SMS — always visible so user can paste entire raw message into any app
+        val btnCopySms: MaterialButton = view.findViewById(R.id.btnCopySms)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = VH(
@@ -114,47 +118,41 @@ class WorkMessageAdapter : RecyclerView.Adapter<WorkMessageAdapter.VH>() {
     override fun onBindViewHolder(holder: VH, position: Int) {
         val msg = items[position]
 
-        // Sender: raw as received — "VM-HDFC", "+919876543210", "AM-PAYTM", etc.
+        // Sender shown exactly as received: VM-HDFC, +919876543210, AM-PAYTM, etc.
         holder.tvSender.text = msg.sender
 
-        // Full body — NO truncation, entire text including trailing app hashes
+        // Full raw body — including any trailing app-hash lines (e.g., pgft1w9U6nf)
+        // No maxLines limit here; the layout also has no maxLines
         holder.tvBody.text = msg.body
-        holder.tvBody.maxLines = Int.MAX_VALUE
-        holder.tvBody.ellipsize = null
 
-        // Timestamp
         holder.tvTime.text = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
             .format(Date(msg.timestamp))
 
         // OTP section
         if (msg.otp != null) {
-            holder.divider.visibility = View.VISIBLE
             holder.tvOtp.visibility = View.VISIBLE
             holder.tvOtp.text = "OTP: ${msg.otp}"
-            holder.layoutButtons.visibility = View.VISIBLE
             holder.btnCopyOtp.visibility = View.VISIBLE
             holder.btnCopyOtp.text = "Copy OTP: ${msg.otp}"
             holder.btnCopyOtp.setOnClickListener {
-                copyToClipboard(holder.view.context, msg.otp, "OTP copied: ${msg.otp}")
+                copyToClipboard(holder.view.context, msg.otp, "OTP")
             }
         } else {
-            holder.divider.visibility = View.GONE
             holder.tvOtp.visibility = View.GONE
-            holder.layoutButtons.visibility = View.VISIBLE   // still show Copy Full SMS
             holder.btnCopyOtp.visibility = View.GONE
         }
 
-        // Copy Full SMS — always visible
-        holder.btnCopyFull.setOnClickListener {
-            copyToClipboard(holder.view.context, msg.body, "Full SMS copied")
+        // Copy Full SMS — always available; pastes the entire raw SMS body
+        holder.btnCopySms.setOnClickListener {
+            copyToClipboard(holder.view.context, msg.body, "Full SMS")
         }
     }
 
     override fun getItemCount() = items.size
 
-    private fun copyToClipboard(context: android.content.Context, text: String, toastMsg: String) {
-        val clipboard = context.getSystemService(ClipboardManager::class.java)
-        clipboard.setPrimaryClip(ClipData.newPlainText("SMS", text))
-        Toast.makeText(context, toastMsg, Toast.LENGTH_SHORT).show()
+    private fun copyToClipboard(context: Context, text: String, label: String) {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText(label, text))
+        Toast.makeText(context, "$label copied!", Toast.LENGTH_SHORT).show()
     }
 }
