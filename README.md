@@ -230,4 +230,14 @@ SMSBridge/
 
 ---
 
+## Disclaimer
+
+> **Notice:** SMSBridge is created for personal productivity, testing, and interoperability research in managed multi-profile Android environments on user-owned hardware.
+>
+> - **Inbox Integrity:** SMSBridge operates as a non-intrusive broadcast listener. It does not alter, consume, delete, or modify carrier messaging, your default SMS app, or the system telephony inbox database in your primary profile.
+> - **Data Privacy:** All message routing occurs strictly on-device via local loopback (`127.0.0.1`). No messages, OTPs, or personal data are ever transmitted to external servers, cloud services, or third parties.
+> - **User Responsibility:** Users are solely responsible for complying with the terms of service and security policies of their mobile carriers, financial institutions, and third-party applications installed on their devices.
+
+---
+
 Made with ❤️ by [BIBEK](https://github.com/bibekg1)
